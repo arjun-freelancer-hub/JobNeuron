@@ -49,7 +49,7 @@ export default function ProtectedLayout({
             <div className="flex items-center">
               <span className="text-sm text-gray-700 mr-4">{user?.email}</span>
               <button
-                onClick={logout}
+                onClick={() => logout(pathname)}
                 className="text-sm text-gray-500 hover:text-gray-700"
               >
                 Logout

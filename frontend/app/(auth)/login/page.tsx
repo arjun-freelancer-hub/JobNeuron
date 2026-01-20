@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -16,8 +16,22 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [redirectTo, setRedirectTo] = useState<string>('/dashboard');
+
+  useEffect(() => {
+    // Get redirect parameter from URL
+    const redirect = searchParams.get('redirect');
+    if (redirect) {
+      // Validate redirect URL to prevent open redirects
+      // Only allow relative paths starting with /
+      if (redirect.startsWith('/') && !redirect.startsWith('//')) {
+        setRedirectTo(redirect);
+      }
+    }
+  }, [searchParams]);
 
   const {
     register,
@@ -34,7 +48,8 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/login', data);
       if (response.data) {
-        router.push('/dashboard');
+        // Redirect to the specified URL or default to dashboard
+        router.push(redirectTo);
         router.refresh();
       }
     } catch (err: any) {

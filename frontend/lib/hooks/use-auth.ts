@@ -41,7 +41,7 @@ export function useAuth() {
     return roles.some((role) => hasRole(role));
   };
 
-  const logout = async () => {
+  const logout = async (redirectTo?: string) => {
     try {
       await api.post('/auth/logout');
     } catch (error) {
@@ -49,7 +49,17 @@ export function useAuth() {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
-      window.location.href = '/login';
+      
+      // Build logout URL with redirect parameter if provided
+      let logoutUrl = '/login';
+      if (redirectTo) {
+        // Validate redirect URL to prevent open redirects
+        if (redirectTo.startsWith('/') && !redirectTo.startsWith('//')) {
+          logoutUrl = `/login?redirect=${encodeURIComponent(redirectTo)}`;
+        }
+      }
+      
+      window.location.href = logoutUrl;
     }
   };
 
