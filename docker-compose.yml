@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: jobneuron-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: jobneuron
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - jobneuron-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobneuron-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - jobneuron-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  jobneuron-network:
+    driver: bridge
