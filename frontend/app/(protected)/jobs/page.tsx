@@ -15,7 +15,7 @@ interface Job {
   description: string;
   location?: string;
   salary?: string;
-  matchScore?: number;
+  matchScore?: number | null;
   createdAt: string;
   application?: {
     _id: string;
@@ -367,7 +367,7 @@ export default function JobsPage() {
                       )}
                     </div>
                     <div className="text-right">
-                      {job.matchScore !== undefined ? (
+                      {job.matchScore !== null && job.matchScore !== undefined ? (
                         <div>
                           <span className="text-2xl font-bold text-indigo-600">
                             {job.matchScore.toFixed(1)}
@@ -377,9 +377,9 @@ export default function JobsPage() {
                       ) : (
                         <button
                           onClick={() => calculateMatchScore(job._id)}
-                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+                          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
                         >
-                          Calculate Match
+                          Generate Score
                         </button>
                       )}
                     </div>
