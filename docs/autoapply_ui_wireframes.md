@@ -1,4 +1,4 @@
-# UI Wireframes --- AutoApply AI
+# UI Wireframes --- JobNeuron
 
 ## Dashboard
 

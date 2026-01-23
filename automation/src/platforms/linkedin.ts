@@ -2,6 +2,10 @@ import { chromium, Browser, Page } from 'playwright';
 import axios from 'axios';
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
+const HEADLESS = process.env.HEADLESS !== 'false'; // Default to true unless explicitly set to 'false'
+const BROWSER_TIMEOUT = parseInt(process.env.BROWSER_TIMEOUT || '30000', 10);
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
+const RETRY_DELAY = parseInt(process.env.RETRY_DELAY || '5000', 10);
 
 export class LinkedInAutomation {
   private browser: Browser | null = null;
@@ -17,15 +21,15 @@ export class LinkedInAutomation {
 
     try {
       // Navigate to job page
-      await page.goto(job.url, { waitUntil: 'networkidle' });
+      await page.goto(job.url, { waitUntil: 'networkidle', timeout: BROWSER_TIMEOUT });
 
       // Wait for Easy Apply button
       const easyApplyButton = page.locator('button:has-text("Easy Apply")').first();
-      await easyApplyButton.waitFor({ timeout: 10000 });
+      await easyApplyButton.waitFor({ timeout: BROWSER_TIMEOUT });
       await easyApplyButton.click();
 
       // Wait for application form
-      await page.waitForSelector('form', { timeout: 10000 });
+      await page.waitForSelector('form', { timeout: BROWSER_TIMEOUT });
 
       // Get resume from R2
       const resumeUrl = await this.getResumeUrl(job.resumeId);
@@ -38,7 +42,7 @@ export class LinkedInAutomation {
       await submitButton.click();
 
       // Wait for confirmation
-      await page.waitForSelector('text=Application submitted', { timeout: 10000 });
+      await page.waitForSelector('text=Application submitted', { timeout: BROWSER_TIMEOUT });
 
       return {
         appliedAt: new Date().toISOString(),
@@ -86,7 +90,7 @@ export class LinkedInAutomation {
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
       this.browser = await chromium.launch({
-        headless: true,
+        headless: HEADLESS,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',

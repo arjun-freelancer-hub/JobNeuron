@@ -1,8 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
 import { R2Service } from '../storage/r2.service';
-import * as pdfParse from 'pdf-parse';
 import * as mammoth from 'mammoth';
+// Handle pdf-parse v2+ class-based API
+const pdfParseModule = require('pdf-parse');
+const PDFParse = pdfParseModule.PDFParse;
+
+// Create a wrapper function for backward compatibility with v1 API
+const pdfParse = async (buffer: Buffer): Promise<{ text: string }> => {
+  const parser = new PDFParse({ data: buffer });
+  const result = await parser.getText();
+  return { text: result.text };
+};
 
 @Injectable()
 export class AIService {
@@ -19,9 +28,10 @@ export class AIService {
     jobDescription: string,
     jobTitle: string,
     companyName: string,
+    mimeType?: string,
   ): Promise<string> {
     // Download and parse master resume
-    const resumeText = await this.getResumeTextFromUrl(masterResumeUrl);
+    const resumeText = await this.getResumeTextFromUrl(masterResumeUrl, mimeType);
 
     // Create prompt for OpenAI
     const prompt = `You are an expert resume writer. Your task is to tailor a resume to match a specific job description.
@@ -48,7 +58,7 @@ Return the tailored resume in the same format as the original (text format).`;
 
     try {
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -96,10 +106,12 @@ Provide a match score from 0 to 10 where:
 - 9-10: Excellent match - all or nearly all requirements met, ideal candidate
 
 Respond with ONLY a number between 0 and 10, no explanation.`;
+    
+
 
     try {
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
@@ -125,13 +137,39 @@ Respond with ONLY a number between 0 and 10, no explanation.`;
     }
   }
 
-  private async getResumeTextFromUrl(url: string): Promise<string> {
-    // This is a placeholder - in production, you'd download from R2
-    // For now, we'll assume the resume text is already available
-    // In a real implementation, you'd:
-    // 1. Download file from R2
-    // 2. Parse based on file type
-    // 3. Return text
-    return '';
+  private async getResumeTextFromUrl(url: string, mimeType?: string): Promise<string> {
+    try {
+      // Extract key from URL
+      const key = this.r2Service.extractKeyFromUrl(url);
+      
+      // Download file from R2
+      const fileBuffer = await this.r2Service.downloadFile(key);
+      
+      // Parse based on file type
+      if (mimeType === 'application/pdf') {
+        const pdfData = await pdfParse(fileBuffer);
+        return pdfData.text;
+      } else if (
+        mimeType === 'application/msword' ||
+        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ) {
+        const result = await mammoth.extractRawText({ buffer: fileBuffer });
+        return result.value;
+      } else {
+        // Try to detect type from file extension or default to PDF
+        if (url.toLowerCase().endsWith('.pdf')) {
+          const pdfData = await pdfParse(fileBuffer);
+          return pdfData.text;
+        } else if (url.toLowerCase().endsWith('.docx') || url.toLowerCase().endsWith('.doc')) {
+          const result = await mammoth.extractRawText({ buffer: fileBuffer });
+          return result.value;
+        }
+      }
+      
+      return '';
+    } catch (error) {
+      console.error('Error extracting resume text from URL:', error);
+      return '';
+    }
   }
 }

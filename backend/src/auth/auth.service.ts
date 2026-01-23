@@ -26,19 +26,14 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate email verification token
-    const emailVerificationToken = this.generateRandomToken();
-
     // Create user
+    // Email verification disabled until email service is implemented
     const user = await this.userModel.create({
       email,
       password: hashedPassword,
       roles: [UserRole.USER],
-      emailVerificationToken,
-      emailVerified: false,
+      emailVerified: true, // Auto-verify since email service is not available
     });
-
-    // TODO: Send verification email
 
     return {
       id: user._id.toString(),
@@ -58,14 +53,15 @@ export class AuthService {
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
+   
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check if email is verified
-    if (!user.emailVerified) {
-      throw new UnauthorizedException('Please verify your email before logging in');
-    }
+    // Email verification check disabled until email service is implemented
+    // if (!user.emailVerified) {
+    //   throw new UnauthorizedException('Please verify your email before logging in');
+    // }
 
     // Generate tokens
     const payload = {
@@ -76,12 +72,11 @@ export class AuthService {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_SECRET,
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     });
 
     const refreshToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET,
-      expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '30d') as any,
     });
 
     return {
@@ -118,7 +113,6 @@ export class AuthService {
 
       const accessToken = this.jwtService.sign(newPayload, {
         secret: process.env.JWT_SECRET,
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
       });
 
       return { accessToken };

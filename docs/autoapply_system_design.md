@@ -1,4 +1,4 @@
-# System Design --- AutoApply AI
+# System Design --- JobNeuron
 
 ## High-Level Architecture
 

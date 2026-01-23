@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Application, ApplicationDocument, ApplicationStatus } from '../schemas/application.schema';
@@ -6,6 +6,8 @@ import { QueueService } from '../queue/queue.service';
 
 @Injectable()
 export class ApplicationsService {
+  private readonly logger = new Logger(ApplicationsService.name);
+
   constructor(
     @InjectModel(Application.name) private applicationModel: Model<ApplicationDocument>,
     private queueService: QueueService,
@@ -20,6 +22,19 @@ export class ApplicationsService {
     email?: string,
     phone?: string,
   ): Promise<ApplicationDocument> {
+    this.logger.log(`[Applications] Creating application: userId=${userId}, jobId=${jobId}, platform=${platform}`);
+    
+    // Check if application already exists
+    const existingApplication = await this.applicationModel.findOne({
+      userId: new Types.ObjectId(userId),
+      jobId: new Types.ObjectId(jobId),
+    });
+
+    if (existingApplication) {
+      this.logger.warn(`[Applications] Duplicate application detected: userId=${userId}, jobId=${jobId}`);
+      throw new BadRequestException('You have already applied to this job');
+    }
+    
     // Create application record
     const application = await this.applicationModel.create({
       userId: new Types.ObjectId(userId),
@@ -28,7 +43,10 @@ export class ApplicationsService {
       status: ApplicationStatus.PENDING,
     });
 
+    this.logger.log(`[Applications] Application created: applicationId=${application._id}`);
+
     // Add to queue for processing
+    this.logger.log(`[Applications] Adding application to queue...`);
     await this.queueService.addApplicationJob({
       applicationId: application._id.toString(),
       userId,
@@ -40,6 +58,7 @@ export class ApplicationsService {
       phone,
     });
 
+    this.logger.log(`[Applications] ✅ Application ${application._id} queued for processing`);
     return application;
   }
 
@@ -73,12 +92,20 @@ export class ApplicationsService {
     status: ApplicationStatus,
     errorMessage?: string,
   ): Promise<ApplicationDocument> {
+    this.logger.log(`[Applications] Updating application ${id} status to ${status}`);
+    
     const updateData: any = {
       status,
     };
 
     if (status === ApplicationStatus.SUCCESS) {
       updateData.appliedAt = new Date();
+      this.logger.log(`[Applications] ✅ Application ${id} marked as SUCCESS`);
+    } else if (status === ApplicationStatus.FAILED) {
+      this.logger.warn(`[Applications] ❌ Application ${id} marked as FAILED`);
+      if (errorMessage) {
+        this.logger.warn(`[Applications] ❌ Error: ${errorMessage}`);
+      }
     }
 
     if (errorMessage) {
@@ -134,5 +161,14 @@ export class ApplicationsService {
         return acc;
       }, {} as Record<string, number>),
     };
+  }
+
+  async getApplicationByJobId(userId: string, jobId: string): Promise<ApplicationDocument | null> {
+    return this.applicationModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        jobId: new Types.ObjectId(jobId),
+      })
+      .exec();
   }
 }

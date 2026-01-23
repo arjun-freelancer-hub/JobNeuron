@@ -18,7 +18,7 @@ export class AutomationSchedule {
   @Prop({ type: [String], enum: JobPlatform, default: [JobPlatform.LINKEDIN, JobPlatform.INDEED] })
   platforms: JobPlatform[];
 
-  @Prop({ default: true })
+  @Prop({ default: false })
   isActive: boolean;
 }
 

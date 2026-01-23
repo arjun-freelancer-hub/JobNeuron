@@ -8,14 +8,21 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JobsService } from './jobs.service';
+import { JobDiscoveryService } from './job-discovery.service';
+import { ApplicationsService } from '../applications/applications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { JobPlatform } from '../schemas/job.schema';
 import type { UserDocument } from '../schemas/user.schema';
+import { DiscoverJobsDto } from './dto/discover-jobs.dto';
 
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly jobDiscoveryService: JobDiscoveryService,
+    private readonly applicationsService: ApplicationsService,
+  ) {}
 
   @Get('discover')
   async discoverJobs(
@@ -44,16 +51,34 @@ export class JobsController {
       return [];
     }
 
-    return this.jobsService.getJobsWithMatchScores(user._id.toString(), {
+    const jobs = await this.jobsService.getJobsWithMatchScores(user._id.toString(), {
       platform,
       minScore: minScore ? parseFloat(minScore.toString()) : undefined,
       limit: limit ? parseInt(limit.toString()) : undefined,
     });
-  }
 
-  @Get(':id')
-  async getJobById(@Param('id') id: string) {
-    return this.jobsService.getJobById(id);
+    // Fetch application status for each job
+    const jobsWithApplications = await Promise.all(
+      jobs.map(async (job) => {
+        const application = await this.applicationsService.getApplicationByJobId(
+          user._id.toString(),
+          job._id.toString(),
+        );
+        return {
+          ...job,
+          application: application
+            ? {
+                _id: application._id.toString(),
+                status: application.status,
+                appliedAt: application.appliedAt,
+                errorMessage: application.errorMessage,
+              }
+            : null,
+        };
+      }),
+    );
+
+    return jobsWithApplications;
   }
 
   @Get(':id/match-score')
@@ -62,8 +87,23 @@ export class JobsController {
     @Param('id') id: string,
     @GetUser() user: UserDocument,
   ) {
-    const score = await this.jobsService.calculateMatchScore(id, user._id.toString());
-    return { matchScore: score };
+    try {
+      const score = await this.jobsService.calculateMatchScore(id, user._id.toString());
+      return { matchScore: score };
+    } catch (error) {
+      // Re-throw NestJS exceptions (like NotFoundException)
+      if (error instanceof Error && error.constructor.name.includes('Exception')) {
+        throw error;
+      }
+      // Handle other errors
+      console.error('Error calculating match score:', error);
+      throw error;
+    }
+  }
+
+  @Get(':id')
+  async getJobById(@Param('id') id: string) {
+    return this.jobsService.getJobById(id);
   }
 
   @Post()
@@ -78,5 +118,17 @@ export class JobsController {
     salary?: string;
   }) {
     return this.jobsService.createJob(jobData);
+  }
+
+  @Post('discover')
+  @UseGuards(JwtAuthGuard)
+  async discoverAndAddJobs(@Body() discoverDto: DiscoverJobsDto) {
+    const result = await this.jobDiscoveryService.discoverJobs({
+      platform: discoverDto.platform,
+      title: discoverDto.title || '',
+      location: discoverDto.location || '',
+      limit: discoverDto.limit || 20,
+    });
+    return result;
   }
 }

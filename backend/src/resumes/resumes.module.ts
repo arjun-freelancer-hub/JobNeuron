@@ -3,12 +3,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { ResumesService } from './resumes.service';
 import { ResumesController } from './resumes.controller';
 import { Resume, ResumeSchema } from '../schemas/resume.schema';
+import { JobMatchScore, JobMatchScoreSchema } from '../schemas/job-match-score.schema';
 import { StorageModule } from '../storage/storage.module';
 import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Resume.name, schema: ResumeSchema }]),
+    MongooseModule.forFeature([
+      { name: Resume.name, schema: ResumeSchema },
+      { name: JobMatchScore.name, schema: JobMatchScoreSchema },
+    ]),
     StorageModule,
     AIModule,
   ],

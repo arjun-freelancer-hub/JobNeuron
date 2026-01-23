@@ -1,6 +1,6 @@
 # Environment Variables Setup Guide
 
-This guide explains how to set up environment variables for the AutoApply AI platform.
+This guide explains how to set up environment variables for the JobNeuron platform.
 
 ## Quick Start
 

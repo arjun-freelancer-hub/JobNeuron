@@ -2,6 +2,10 @@ import { chromium, Browser, Page } from 'playwright';
 import axios from 'axios';
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
+const HEADLESS = process.env.HEADLESS !== 'false'; // Default to true unless explicitly set to 'false'
+const BROWSER_TIMEOUT = parseInt(process.env.BROWSER_TIMEOUT || '30000', 10);
+const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
+const RETRY_DELAY = parseInt(process.env.RETRY_DELAY || '5000', 10);
 
 export class IndeedAutomation {
   private browser: Browser | null = null;
@@ -17,15 +21,15 @@ export class IndeedAutomation {
 
     try {
       // Navigate to job page
-      await page.goto(job.url, { waitUntil: 'networkidle' });
+      await page.goto(job.url, { waitUntil: 'networkidle', timeout: BROWSER_TIMEOUT });
 
       // Wait for Apply button
       const applyButton = page.locator('button:has-text("Apply"), a:has-text("Apply")').first();
-      await applyButton.waitFor({ timeout: 10000 });
+      await applyButton.waitFor({ timeout: BROWSER_TIMEOUT });
       await applyButton.click();
 
       // Wait for application form
-      await page.waitForSelector('form, [data-testid="application-form"]', { timeout: 10000 });
+      await page.waitForSelector('form, [data-testid="application-form"]', { timeout: BROWSER_TIMEOUT });
 
       // Get resume from R2
       const resumeUrl = await this.getResumeUrl(job.resumeId);
@@ -38,7 +42,7 @@ export class IndeedAutomation {
       await submitButton.click();
 
       // Wait for confirmation
-      await page.waitForSelector('text=Application submitted, text=Thank you', { timeout: 10000 });
+      await page.waitForSelector('text=Application submitted, text=Thank you', { timeout: BROWSER_TIMEOUT });
 
       return {
         appliedAt: new Date().toISOString(),
@@ -85,7 +89,7 @@ export class IndeedAutomation {
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
       this.browser = await chromium.launch({
-        headless: true,
+        headless: HEADLESS,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',

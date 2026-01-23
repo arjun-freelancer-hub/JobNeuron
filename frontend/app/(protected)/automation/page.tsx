@@ -21,7 +21,7 @@ export default function AutomationPage() {
     cronExpression: '0 9 * * *', // Daily at 9 AM
     maxJobsPerDay: 10,
     platforms: ['LINKEDIN', 'INDEED'] as string[],
-    isActive: true,
+    isActive: false,
   });
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function AutomationPage() {
           cronExpression: response.data.cronExpression || '0 9 * * *',
           maxJobsPerDay: response.data.maxJobsPerDay || 10,
           platforms: response.data.platforms || ['LINKEDIN', 'INDEED'],
-          isActive: response.data.isActive !== undefined ? response.data.isActive : true,
+          isActive: response.data.isActive !== undefined ? response.data.isActive : false,
         });
       }
     } catch (error) {

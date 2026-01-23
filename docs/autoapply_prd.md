@@ -1,8 +1,8 @@
-# Product Requirements Document (PRD) --- AutoApply AI
+# Product Requirements Document (PRD) --- JobNeuron
 
 ## 1. Overview
 
-AutoApply AI is a web-based SaaS platform that automates job discovery,
+JobNeuron is a web-based open-source platform that automates job discovery,
 resume tailoring, and job applications on behalf of users with full
 transparency and role-based governance.
 

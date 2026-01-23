@@ -1,4 +1,4 @@
-# API Design --- AutoApply AI
+# API Design --- JobNeuron
 
 ## Auth
 

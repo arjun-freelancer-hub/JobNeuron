@@ -1,5 +1,5 @@
 import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import type { Job } from 'bull';
 import axios from 'axios';
 import { ApplicationJob } from './queue.service';
 

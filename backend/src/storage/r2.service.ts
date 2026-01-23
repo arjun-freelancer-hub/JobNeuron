@@ -58,6 +58,25 @@ export class R2Service {
     await this.s3Client.send(command);
   }
 
+  async downloadFile(key: string): Promise<Buffer> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    const response = await this.s3Client.send(command);
+    
+    // Convert stream to buffer
+    const chunks: Uint8Array[] = [];
+    if (response.Body) {
+      for await (const chunk of response.Body as any) {
+        chunks.push(chunk);
+      }
+    }
+    
+    return Buffer.concat(chunks);
+  }
+
   extractKeyFromUrl(url: string): string {
     // Extract key from R2 URL
     const match = url.match(/\/resumes\/(.+)$/);

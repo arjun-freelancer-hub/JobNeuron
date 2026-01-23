@@ -4,6 +4,7 @@ import {
   Get,
   Delete,
   Param,
+  Body,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -42,6 +43,12 @@ export class ResumesController {
     return this.resumesService.getUserResumes(user._id.toString());
   }
 
+  @Get('config')
+  async getResumeConfig(@GetUser() user: UserDocument) {
+    const source = await this.resumesService.getResumeSource(user._id.toString());
+    return { resumeSource: source || 'UPLOAD' };
+  }
+
   @Get(':id')
   async getResumeById(@Param('id') id: string, @GetUser() user: UserDocument) {
     return this.resumesService.getResumeById(id, user._id.toString());
@@ -50,6 +57,20 @@ export class ResumesController {
   @Get(':id/download')
   async getResumeDownloadUrl(@Param('id') id: string, @GetUser() user: UserDocument) {
     const url = await this.resumesService.getResumeDownloadUrl(id, user._id.toString());
+    return { url };
+  }
+
+  @Get(':id/tailored/:jobId/download')
+  async getTailoredResumeDownloadUrl(
+    @Param('id') id: string,
+    @Param('jobId') jobId: string,
+    @GetUser() user: UserDocument,
+  ) {
+    const url = await this.resumesService.getTailoredResumeDownloadUrl(
+      id,
+      jobId,
+      user._id.toString(),
+    );
     return { url };
   }
 
@@ -73,5 +94,41 @@ export class ResumesController {
       body.jobTitle,
       body.companyName,
     );
+  }
+
+  @Post('form')
+  async saveFormResume(
+    @Body() body: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      summary?: string;
+      workExperience?: Array<{
+        company: string;
+        position: string;
+        startDate: string;
+        endDate?: string;
+        description: string;
+      }>;
+      education?: Array<{
+        institution: string;
+        degree: string;
+        field: string;
+        startDate: string;
+        endDate?: string;
+      }>;
+      skills?: string[];
+    },
+    @GetUser() user: UserDocument,
+  ) {
+    return this.resumesService.saveFormResume(user._id.toString(), body);
+  }
+
+  @Post('config')
+  async updateResumeConfig(
+    @Body() body: { resumeSource: 'UPLOAD' | 'FORM' },
+    @GetUser() user: UserDocument,
+  ) {
+    return this.resumesService.updateResumeSource(user._id.toString(), body.resumeSource);
   }
 }

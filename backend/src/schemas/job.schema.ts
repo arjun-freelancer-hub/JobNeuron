@@ -33,9 +33,6 @@ export class Job {
   @Prop()
   salary?: string;
 
-  @Prop({ type: Number, min: 0, max: 10 })
-  matchScore?: number;
-
   @Prop({ default: Date.now })
   discoveredAt: Date;
 }

@@ -1,4 +1,4 @@
-# n8n Workflow --- AutoApply AI
+# n8n Workflow --- JobNeuron
 
 1.  Trigger: Daily Cron at 9 AM\
 2.  Fetch jobs from LinkedIn/Indeed\
