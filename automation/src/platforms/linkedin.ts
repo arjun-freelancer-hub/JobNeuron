@@ -11,6 +11,16 @@ export class LinkedInAutomation {
   private browser: Browser | null = null;
 
   async applyToJob(job: any): Promise<any> {
+    console.log('[LinkedIn] Received job data:', {
+      applicationId: job.applicationId,
+      jobId: job.jobId,
+      platform: job.platform,
+      jobUrl: job.jobUrl,
+      url: job.url, // Check if old property exists
+      hasJobUrl: !!job.jobUrl,
+      hasUrl: !!job.url,
+    });
+
     const browser = await this.getBrowser();
     const context = await browser.newContext({
       userAgent: this.getRandomUserAgent(),
@@ -21,12 +31,76 @@ export class LinkedInAutomation {
 
     try {
       // Navigate to job page
-      await page.goto(job.url, { waitUntil: 'networkidle', timeout: BROWSER_TIMEOUT });
-
-      // Wait for Easy Apply button
-      const easyApplyButton = page.locator('button:has-text("Easy Apply")').first();
-      await easyApplyButton.waitFor({ timeout: BROWSER_TIMEOUT });
+      // Use jobUrl (new) or fallback to url (old) for backward compatibility
+      const urlToUse = job.jobUrl || job.url;
+      if (!urlToUse) {
+        console.error('[LinkedIn] ❌ No URL found in job data. Available properties:', Object.keys(job));
+        throw new Error('jobUrl is required but was not provided in job data. Available properties: ' + Object.keys(job).join(', '));
+      }
+      console.log('[LinkedIn] Navigating to URL:', urlToUse);
+      
+      // Use 'domcontentloaded' instead of 'networkidle' - LinkedIn pages can have continuous network activity
+      await page.goto(urlToUse, { waitUntil: 'domcontentloaded', timeout: BROWSER_TIMEOUT });
+      console.log('[LinkedIn] Page loaded, waiting for content...');
+      
+      // Wait a bit for dynamic content to load
+      await page.waitForTimeout(3000);
+      
+      // Check if we're on a login page
+      const currentUrl = page.url();
+      if (currentUrl.includes('/login') || currentUrl.includes('/checkpoint')) {
+        const errorMsg = 'LinkedIn requires authentication. Please log in to LinkedIn first.';
+        console.error(`[LinkedIn] ❌ ${errorMsg}`);
+        console.error(`[LinkedIn] Current URL: ${currentUrl}`);
+        throw new Error(errorMsg);
+      }
+      
+      // Check page title to see if we're on the right page
+      const pageTitle = await page.title();
+      console.log('[LinkedIn] Page title:', pageTitle);
+      
+      // Try multiple selectors for Easy Apply button (LinkedIn may use different text/selectors)
+      console.log('[LinkedIn] Looking for Easy Apply button...');
+      let easyApplyButton = null;
+      
+      // Try different selectors
+      const selectors = [
+        'button:has-text("Easy Apply")',
+        'button:has-text("Apply")',
+        '[data-control-name="jobdetails_topcard_inapply"]',
+        'button[aria-label*="Apply"]',
+        'button[aria-label*="Easy Apply"]',
+      ];
+      
+      for (const selector of selectors) {
+        try {
+          const button = page.locator(selector).first();
+          const count = await button.count();
+          if (count > 0) {
+            const isVisible = await button.isVisible().catch(() => false);
+            if (isVisible) {
+              easyApplyButton = button;
+              console.log(`[LinkedIn] ✅ Found Easy Apply button with selector: ${selector}`);
+              break;
+            }
+          }
+        } catch (e) {
+          // Try next selector
+          continue;
+        }
+      }
+      
+      if (!easyApplyButton) {
+        // Take a screenshot for debugging
+        const screenshotPath = `linkedin-debug-${Date.now()}.png`;
+        await page.screenshot({ path: screenshotPath, fullPage: true }).catch(() => {});
+        console.error(`[LinkedIn] ❌ Could not find Easy Apply button. Screenshot saved: ${screenshotPath}`);
+        console.error('[LinkedIn] Page HTML snippet:', await page.content().then(c => c.substring(0, 500)).catch(() => 'Could not get HTML'));
+        throw new Error('Easy Apply button not found. LinkedIn may require login or the page structure has changed.');
+      }
+      
       await easyApplyButton.click();
+      console.log('[LinkedIn] ✅ Clicked Easy Apply button');
 
       // Wait for application form
       await page.waitForSelector('form', { timeout: BROWSER_TIMEOUT });

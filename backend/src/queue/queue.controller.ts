@@ -25,7 +25,9 @@ export class QueueController {
         return null;
       }
 
-      this.logger.log(`[Queue] Returning job: applicationId=${job.applicationId}, jobId=${job.jobId}, platform=${job.platform}`);
+      this.logger.log(`[Queue] 📤 Job picked up by worker: applicationId=${job.applicationId}, jobId=${job.jobId}, platform=${job.platform}`);
+      this.logger.log(`[Queue] 📤 Job URL: ${job.jobUrl || '⚠️ MISSING - This will cause the application to fail!'}`);
+      this.logger.log(`[Queue] ⏳ Waiting for worker to process and report completion...`);
       return job;
     } catch (error) {
       // Only log error if it's not a timeout (timeouts are expected when Redis is down)

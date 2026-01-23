@@ -11,6 +11,16 @@ export class IndeedAutomation {
   private browser: Browser | null = null;
 
   async applyToJob(job: any): Promise<any> {
+    console.log('[Indeed] Received job data:', {
+      applicationId: job.applicationId,
+      jobId: job.jobId,
+      platform: job.platform,
+      jobUrl: job.jobUrl,
+      url: job.url, // Check if old property exists
+      hasJobUrl: !!job.jobUrl,
+      hasUrl: !!job.url,
+    });
+
     const browser = await this.getBrowser();
     const context = await browser.newContext({
       userAgent: this.getRandomUserAgent(),
@@ -21,7 +31,14 @@ export class IndeedAutomation {
 
     try {
       // Navigate to job page
-      await page.goto(job.url, { waitUntil: 'networkidle', timeout: BROWSER_TIMEOUT });
+      // Use jobUrl (new) or fallback to url (old) for backward compatibility
+      const urlToUse = job.jobUrl || job.url;
+      if (!urlToUse) {
+        console.error('[Indeed] ❌ No URL found in job data. Available properties:', Object.keys(job));
+        throw new Error('jobUrl is required but was not provided in job data. Available properties: ' + Object.keys(job).join(', '));
+      }
+      console.log('[Indeed] Navigating to URL:', urlToUse);
+      await page.goto(urlToUse, { waitUntil: 'networkidle', timeout: BROWSER_TIMEOUT });
 
       // Wait for Apply button
       const applyButton = page.locator('button:has-text("Apply"), a:has-text("Apply")').first();

@@ -2,7 +2,8 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { QueueService } from './queue.service';
-import { ApplicationProcessor } from './application.processor';
+// ApplicationProcessor is disabled - automation worker polls for jobs via /queue/jobs/next
+// import { ApplicationProcessor } from './application.processor';
 import { QueueController } from './queue.controller';
 
 @Module({
@@ -47,7 +48,12 @@ import { QueueController } from './queue.controller';
     }),
   ],
   controllers: [QueueController],
-  providers: [QueueService, ApplicationProcessor],
+  providers: [
+    QueueService,
+    // ApplicationProcessor is disabled - automation worker polls for jobs via /queue/jobs/next
+    // Jobs remain in queue until automation worker retrieves them
+    // ApplicationProcessor,
+  ],
   exports: [QueueService],
 })
 export class QueueModule {}

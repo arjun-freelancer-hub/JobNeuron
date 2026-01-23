@@ -1,30 +1,28 @@
 import { Processor, Process } from '@nestjs/bull';
 import type { Job } from 'bull';
-import axios from 'axios';
 import { ApplicationJob } from './queue.service';
 
-const AUTOMATION_WORKER_URL = process.env.AUTOMATION_WORKER_URL || 'http://localhost:3002';
-
+/**
+ * ApplicationProcessor is disabled because the automation worker
+ * polls the backend for jobs via /queue/jobs/next endpoint.
+ * 
+ * Jobs are queued and remain in the queue until the automation worker
+ * polls and retrieves them. This processor should not process jobs
+ * to avoid conflicts with the polling worker.
+ */
 @Processor('application')
 export class ApplicationProcessor {
   @Process('process-application')
   async handleApplication(job: Job<ApplicationJob>) {
-    const { applicationId, ...jobData } = job.data;
+    const { applicationId } = job.data;
 
-    try {
-      // Send job to automation worker
-      const response = await axios.post(
-        `${AUTOMATION_WORKER_URL}/process`,
-        jobData,
-        {
-          timeout: 300000, // 5 minutes timeout
-        }
-      );
-
-      return response.data;
-    } catch (error) {
-      console.error(`Error processing application ${applicationId}:`, error);
-      throw error;
-    }
+    // Do not process jobs here - let the automation worker poll for them
+    // The automation worker will retrieve jobs via /queue/jobs/next endpoint
+    // and process them directly using browser automation
+    
+    console.log(`[ApplicationProcessor] Job ${applicationId} queued - waiting for automation worker to poll`);
+    
+    // Return without processing - job stays in queue for worker to pick up
+    return { message: 'Job queued for automation worker', applicationId };
   }
 }

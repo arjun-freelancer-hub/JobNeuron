@@ -98,19 +98,37 @@ export class ApplicationsController {
     @Body() body: { 
       status: 'SUCCESS' | 'FAILED';
       errorMessage?: string;
-      appliedAt?: Date;
+      appliedAt?: Date | string;
       [key: string]: any; // Allow additional fields from worker
     },
   ) {
-    this.logger.log(`[Applications] POST /${id}/complete - status=${body.status}`);
+    this.logger.log(`[Applications] 📥 Worker reported completion: applicationId=${id}, status=${body.status}`);
     const applicationStatus = body.status === 'SUCCESS' 
       ? ApplicationStatus.SUCCESS 
       : ApplicationStatus.FAILED;
     
-    return this.applicationsService.updateApplicationStatus(
+    // Parse appliedAt if provided
+    let appliedAtDate: Date | undefined;
+    if (body.appliedAt) {
+      appliedAtDate = body.appliedAt instanceof Date 
+        ? body.appliedAt 
+        : new Date(body.appliedAt);
+    }
+    
+    // Update status with optional appliedAt date
+    const result = await this.applicationsService.updateApplicationStatus(
       id,
       applicationStatus,
       body.errorMessage,
+      appliedAtDate,
     );
+    
+    if (applicationStatus === ApplicationStatus.SUCCESS) {
+      this.logger.log(`[Applications] ✅✅✅ APPLICATION SUCCESSFUL: applicationId=${id} - User has been applied to the job!`);
+    } else {
+      this.logger.warn(`[Applications] ❌❌❌ APPLICATION FAILED: applicationId=${id} - ${body.errorMessage || 'Unknown error'}`);
+    }
+    
+    return result;
   }
 }

@@ -47,18 +47,35 @@ export class ApplicationsService {
 
     // Add to queue for processing
     this.logger.log(`[Applications] Adding application to queue...`);
-    await this.queueService.addApplicationJob({
-      applicationId: application._id.toString(),
-      userId,
-      jobId,
-      resumeId,
-      platform,
-      jobUrl,
-      email,
-      phone,
-    });
+    try {
+      await this.queueService.addApplicationJob({
+        applicationId: application._id.toString(),
+        userId,
+        jobId,
+        resumeId,
+        platform,
+        jobUrl,
+        email,
+        phone,
+      });
 
-    this.logger.log(`[Applications] ✅ Application ${application._id} queued for processing`);
+      this.logger.log(`[Applications] ✅ Application ${application._id} queued for processing`);
+    } catch (error) {
+      // If queue fails, mark application as failed immediately
+      const errorMessage = error instanceof Error ? error.message : 'Failed to queue application';
+      this.logger.error(`[Applications] ❌ Failed to queue application ${application._id}: ${errorMessage}`);
+      
+      // Update application status to FAILED
+      await this.updateApplicationStatus(
+        application._id.toString(),
+        ApplicationStatus.FAILED,
+        `Queue error: ${errorMessage}`,
+      );
+      
+      // Re-throw to inform the caller
+      throw error;
+    }
+    
     return application;
   }
 
@@ -91,6 +108,7 @@ export class ApplicationsService {
     id: string,
     status: ApplicationStatus,
     errorMessage?: string,
+    appliedAt?: Date,
   ): Promise<ApplicationDocument> {
     this.logger.log(`[Applications] Updating application ${id} status to ${status}`);
     
@@ -99,12 +117,14 @@ export class ApplicationsService {
     };
 
     if (status === ApplicationStatus.SUCCESS) {
-      updateData.appliedAt = new Date();
-      this.logger.log(`[Applications] ✅ Application ${id} marked as SUCCESS`);
+      // Use provided appliedAt or current date
+      updateData.appliedAt = appliedAt || new Date();
+      this.logger.log(`[Applications] ✅ Application ${id} status updated to SUCCESS`);
+      this.logger.log(`[Applications] ✅ Applied at: ${updateData.appliedAt.toISOString()}`);
     } else if (status === ApplicationStatus.FAILED) {
-      this.logger.warn(`[Applications] ❌ Application ${id} marked as FAILED`);
+      this.logger.warn(`[Applications] ❌ Application ${id} status updated to FAILED`);
       if (errorMessage) {
-        this.logger.warn(`[Applications] ❌ Error: ${errorMessage}`);
+        this.logger.warn(`[Applications] ❌ Failure reason: ${errorMessage}`);
       }
     }
 
