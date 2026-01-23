@@ -158,67 +158,95 @@ export class JobsService {
     platform?: JobPlatform;
     minScore?: number;
     limit?: number;
-  }): Promise<Array<Record<string, any> & { matchScore?: number }>> {
-    const query: any = {};
+  }): Promise<Array<Record<string, any> & { matchScore: number | null }>> {
+    const limit = filters.limit || 50;
+    const userIdObj = new Types.ObjectId(userId);
 
+    // Build aggregation pipeline
+    const pipeline: any[] = [];
+
+    // Stage 1: Match jobs by platform filter
+    const matchStage: any = {};
     if (filters.platform) {
-      query.platform = filters.platform;
+      matchStage.platform = filters.platform;
+    }
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
     }
 
-    const limit = filters.limit || 50;
-
-    // Get all jobs matching platform filter
-    const jobs = await this.jobModel
-      .find(query)
-      .limit(limit * 2) // Get more jobs to filter by score later
-      .sort({ createdAt: -1 })
-      .exec();
-
-    // Get user-specific match scores for these jobs
-    const jobIds = jobs.map((job) => job._id);
-    const matchScores = await this.jobMatchScoreModel.find({
-      jobId: { $in: jobIds },
-      userId: new Types.ObjectId(userId),
+    // Stage 2: Lookup match scores from JobMatchScore collection
+    const matchScoreCollectionName = this.jobMatchScoreModel.collection.name;
+    pipeline.push({
+      $lookup: {
+        from: matchScoreCollectionName,
+        let: { jobId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$jobId', '$$jobId'] },
+                  { $eq: ['$userId', userIdObj] },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'matchScoreData',
+      },
     });
 
-    // Create a map of jobId -> score for quick lookup
-    const scoreMap = new Map<string, number>();
-    matchScores.forEach((ms) => {
-      scoreMap.set(ms.jobId.toString(), ms.score);
+    // Stage 3: Add matchScore field (extract from lookup result or default to null to track missing scores)
+    pipeline.push({
+      $addFields: {
+        matchScore: {
+          $ifNull: [
+            { $arrayElemAt: ['$matchScoreData.score', 0] },
+            null,
+          ],
+        },
+        hasMatchScore: {
+          $gt: [{ $size: '$matchScoreData' }, 0],
+        },
+      },
     });
 
-    // Attach scores to jobs and filter by minScore if specified
-    const jobsWithScores = jobs
-      .map((job) => {
-        const score = scoreMap.get(job._id.toString());
-        const jobObj = job.toObject();
-        return {
-          ...jobObj,
-          matchScore: score,
-        };
-      })
-      .filter((job) => {
-        // If minScore is specified, only include jobs with score >= minScore
-        if (filters.minScore !== undefined) {
-          return job.matchScore !== undefined && job.matchScore >= filters.minScore;
-        }
-        // If no minScore filter, include all jobs (with or without scores)
-        return true;
-      })
-      .sort((a, b) => {
-        // Sort by matchScore descending, then by createdAt descending
-        const scoreA = a.matchScore ?? -1;
-        const scoreB = b.matchScore ?? -1;
-        if (scoreA !== scoreB) {
-          return scoreB - scoreA;
-        }
-        // createdAt is added by Mongoose timestamps but not in TypeScript type
-        const dateA = (a as Record<string, any>).createdAt ? new Date((a as Record<string, any>).createdAt).getTime() : 0;
-        const dateB = (b as Record<string, any>).createdAt ? new Date((b as Record<string, any>).createdAt).getTime() : 0;
-        return dateB - dateA;
-      })
-      .slice(0, limit); // Apply limit after filtering and sorting
+    // Stage 4: Remove the temporary matchScoreData array
+    pipeline.push({
+      $unset: 'matchScoreData',
+    });
 
-    return jobsWithScores;
+    // Stage 5: Sort by matchScore descending (nulls last), then by createdAt descending
+    pipeline.push({
+      $sort: {
+        matchScore: -1, // -1 means descending, nulls will be sorted last
+        createdAt: -1,
+      },
+    });
+
+    // Stage 6: Apply limit
+    pipeline.push({
+      $limit: limit,
+    });
+
+    // Execute aggregation
+    const jobsWithScores = await this.jobModel.aggregate(pipeline).exec();
+
+    // Filter by minScore if specified (only jobs with scores >= minScore)
+    let filteredJobs = jobsWithScores;
+    if (filters.minScore !== undefined) {
+      filteredJobs = jobsWithScores.filter(
+        (job) => job.matchScore !== null && job.matchScore !== undefined && job.matchScore >= filters.minScore!
+      );
+    }
+
+    // Return jobs with matchScore (null if not calculated yet)
+    return filteredJobs.map((job) => {
+      const { hasMatchScore, ...rest } = job;
+      return { 
+        ...rest, 
+        matchScore: job.matchScore !== null && job.matchScore !== undefined ? job.matchScore : null 
+      };
+    });
   }
 }
